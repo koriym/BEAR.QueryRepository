@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace BEAR\QueryRepository\Log\Context;
 
-use Koriym\SemanticLogger\AbstractContext;
-
 /**
  * Event: a resource value (body) was stored.
  */
-final class SaveValueContext extends AbstractContext
+final class SaveValueContext extends AbstractRepositoryContext
 {
     public const TYPE = 'save_value';
     public const SCHEMA_URL = 'https://bearsunday.github.io/BEAR.QueryRepository/schemas/context/save_value.json';

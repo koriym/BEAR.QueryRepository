@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace BEAR\QueryRepository\Log\Context;
 
-use Koriym\SemanticLogger\AbstractContext;
-
 /**
  * Close/event: a cache lookup miss at the given layer.
  */
-final class CacheMissContext extends AbstractContext
+final class CacheMissContext extends AbstractRepositoryContext
 {
     public const TYPE = 'cache_miss';
     public const SCHEMA_URL = 'https://bearsunday.github.io/BEAR.QueryRepository/schemas/context/cache_miss.json';

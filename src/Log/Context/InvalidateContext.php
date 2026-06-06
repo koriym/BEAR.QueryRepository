@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace BEAR\QueryRepository\Log\Context;
 
 use JsonSerializable;
-use Koriym\SemanticLogger\AbstractContext;
 use Override;
 
 /**
@@ -16,7 +15,7 @@ use Override;
  *                       the tag version stale; it does not physically delete)
  *   cdn             -> "purged" | "failed"        (CDN surrogate-key purge)
  */
-final class InvalidateContext extends AbstractContext implements JsonSerializable
+final class InvalidateContext extends AbstractRepositoryContext implements JsonSerializable
 {
     public const TYPE = 'invalidate';
     public const SCHEMA_URL = 'https://bearsunday.github.io/BEAR.QueryRepository/schemas/context/invalidate.json';

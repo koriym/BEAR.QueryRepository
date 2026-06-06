@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace BEAR\QueryRepository\Log\Context;
 
-use Koriym\SemanticLogger\AbstractContext;
-
 /**
  * Event: a donut was put with its TTLs.
  */
-final class PutDonutContext extends AbstractContext
+final class PutDonutContext extends AbstractRepositoryContext
 {
     public const TYPE = 'put_donut';
     public const SCHEMA_URL = 'https://bearsunday.github.io/BEAR.QueryRepository/schemas/context/put_donut.json';

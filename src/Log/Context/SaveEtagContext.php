@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace BEAR\QueryRepository\Log\Context;
 
-use Koriym\SemanticLogger\AbstractContext;
-
 /**
  * Event: an ETag entry was stored with its surrogate keys.
  */
-final class SaveEtagContext extends AbstractContext
+final class SaveEtagContext extends AbstractRepositoryContext
 {
     public const TYPE = 'save_etag';
     public const SCHEMA_URL = 'https://bearsunday.github.io/BEAR.QueryRepository/schemas/context/save_etag.json';

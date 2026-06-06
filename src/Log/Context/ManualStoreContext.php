@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace BEAR\QueryRepository\Log\Context;
 
-use Koriym\SemanticLogger\AbstractContext;
-
 /**
  * Open: an application-initiated (manual) store of a resource.
  *
@@ -13,7 +11,7 @@ use Koriym\SemanticLogger\AbstractContext;
  * write command). A direct put has no enclosing scope, so its save events would
  * be dropped at flush; wrapping it here keeps the write visible in the log.
  */
-final class ManualStoreContext extends AbstractContext
+final class ManualStoreContext extends AbstractRepositoryContext
 {
     public const TYPE = 'manual_store';
     public const SCHEMA_URL = 'https://bearsunday.github.io/BEAR.QueryRepository/schemas/context/manual_store.json';
