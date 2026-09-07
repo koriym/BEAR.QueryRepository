@@ -1,0 +1,75 @@
+name: Class Diagram
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  diagram:
+    runs-on: ubuntu-latest
+
+    env:
+      # The diagram in docs/ describes the default branch, not the tag: a release event
+      # checks out and commits there, so what Pages serves is the current design.
+      BRANCH: ${{ github.event.repository.default_branch }}
+      PLANTUML: 1.2026.0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Install php-class-diagram
+        # Outside the project: the tool brings its own nikic/php-parser, and this package's
+        # static analysers pin theirs.
+        run: |
+          mkdir -p /tmp/pcd
+          echo '{}' > /tmp/pcd/composer.json
+          composer require --no-interaction --quiet --working-dir=/tmp/pcd smeghead/php-class-diagram
+
+      - name: Install PlantUML
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq graphviz
+          curl -sL -o /tmp/plantuml.jar \
+            "https://github.com/plantuml/plantuml/releases/download/v${PLANTUML}/plantuml-${PLANTUML}.jar"
+
+      - name: Generate
+        # Only this job writes docs/diagrams: PlantUML lays text out with the fonts it finds, so
+        # the same input renders 2027px wide here and 2093px on a mac. Regenerating by hand puts
+        # the repository in a loop of geometry-only commits.
+        run: |
+          mkdir -p docs/diagrams
+          topurl="https://github.com/${GITHUB_REPOSITORY}/blob/${BRANCH}/src"
+          pcd() { php /tmp/pcd/vendor/bin/php-class-diagram --svg-topurl="$topurl" "$@"; }
+          render() { java -jar /tmp/plantuml.jar -tsvg -pipe > "docs/diagrams/$1.svg"; }
+
+          # Package relations first: a cycle between namespaces is drawn as a thick red line,
+          # which is the one thing here that reports a defect rather than describing the code.
+          pcd --package-diagram src | render package
+
+          # Relations without members, because a member-level diagram of every class renders
+          # 24000px wide and answers nothing. The subnamespaces are separate for the same reason.
+          pcd --disable-class-properties --disable-class-methods \
+            --exclude='Log' --exclude='Cdn' --exclude='Exception' src | render core
+          pcd --disable-class-properties --disable-class-methods src/Log | render log
+
+      - name: Commit when the design changed
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/diagrams
+          git diff --cached --quiet && { echo 'no change'; exit 0; }
+          git commit -m 'Update class diagrams'
+          git push origin "HEAD:${BRANCH}"
