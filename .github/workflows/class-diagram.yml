@@ -30,6 +30,9 @@ jobs:
           php-version: '8.4'
           coverage: none
 
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
       - name: Install php-class-diagram
         # Outside the project: the tool brings its own nikic/php-parser, and this package's
         # static analysers pin theirs.
@@ -62,11 +65,15 @@ jobs:
           pcd src/Exception | render exception
           pcd src-annotation | render attributes
 
+          # What the modules bind, which no class diagram shows: dashed is a binding, solid a
+          # dependency, and a double arrow means a Provider stands between them.
+          php bin/gen_og.php
+
       - name: Commit when the design changed
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add docs/diagrams
+          git add 'docs/diagrams/*.svg'
           git diff --cached --quiet && { echo 'no change'; exit 0; }
           git commit -m 'Update class diagrams'
           git push origin "HEAD:${BRANCH}"

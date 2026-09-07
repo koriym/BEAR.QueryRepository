@@ -15,7 +15,9 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 
 $og = new ObjectGrapher;
 
-chdir(dirname(__DIR__). '/docs');
+$dir = dirname(__DIR__) . '/docs/diagrams';
+is_dir($dir) || mkdir($dir, 0755, true);
+chdir($dir);
 
 file_put_contents('qr.dot', $og(new QueryRepositoryModule()));
 passthru('dot -T svg qr.dot > qr.svg');
