@@ -58,8 +58,15 @@ jobs:
           pcd() { php /tmp/pcd/vendor/bin/php-class-diagram --svg-topurl="$topurl" "$@"; }
           render() { java -jar /tmp/plantuml.jar -tsvg -pipe > "docs/diagrams/$1.svg"; }
 
-          # One diagram per namespace: all of src at once renders 25000px wide, which no one reads.
-          pcd --exclude='Log' --exclude='Cdn' --exclude='Exception' src | render core
+          # By concern, not one diagram of everything: the root namespace is flat and 60 classes
+          # wide, and drawing it whole buries the boxes under their own dependency arrows.
+          pcd --include='*Interceptor.php' --include='*Command*.php' src | render interceptor
+          pcd --include='*Storage*.php' --include='*Repository*.php' --include='*Etag*.php' \
+            --include='ResourceState.php' src | render store
+          pcd --include='*Module.php' src | render module
+          pcd --exclude='*Interceptor.php' --exclude='*Command*.php' --exclude='*Storage*.php' \
+            --exclude='*Repository*.php' --exclude='*Etag*.php' --exclude='*Module.php' \
+            --exclude='Log' --exclude='Cdn' --exclude='Exception' src | render http-cache
           pcd src/Log | render log
           pcd src/Cdn | render cdn
           pcd src/Exception | render exception
