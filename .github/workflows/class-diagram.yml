@@ -47,7 +47,7 @@ jobs:
 
       - name: Generate
         # Only this job writes docs/diagrams: PlantUML lays text out with the fonts it finds, so
-        # the same input renders 2027px wide here and 2093px on a mac. Regenerating by hand puts
+        # the same input renders 66px wider on a mac than on the runner. Regenerating by hand puts
         # the repository in a loop of geometry-only commits.
         run: |
           mkdir -p docs/diagrams
@@ -55,14 +55,12 @@ jobs:
           pcd() { php /tmp/pcd/vendor/bin/php-class-diagram --svg-topurl="$topurl" "$@"; }
           render() { java -jar /tmp/plantuml.jar -tsvg -pipe > "docs/diagrams/$1.svg"; }
 
-          # Relations without members, because a member-level diagram of every class renders
-          # 24000px wide and answers nothing. The subnamespaces are separate for the same reason.
-          pcd --disable-class-properties --disable-class-methods \
-            --exclude='Log' --exclude='Cdn' --exclude='Exception' src | render core
-          pcd --disable-class-properties --disable-class-methods src/Log | render log
-
-          # The attributes are the surface an application writes against, so this one keeps members.
-          pcd --hide-private src-annotation | render attributes
+          # One diagram per namespace: all of src at once renders 25000px wide, which no one reads.
+          pcd --exclude='Log' --exclude='Cdn' --exclude='Exception' src | render core
+          pcd src/Log | render log
+          pcd src/Cdn | render cdn
+          pcd src/Exception | render exception
+          pcd src-annotation | render attributes
 
       - name: Commit when the design changed
         run: |
