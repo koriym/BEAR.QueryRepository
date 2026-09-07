@@ -73,7 +73,7 @@ jobs:
           pcd src --hide-private-properties --header='left to right direction' | render all
 
           pcd src/Log | render log
-          php /tmp/pcd/vendor/bin/php-class-diagram --svg-topurl="https://github.com/${GITHUB_REPOSITORY}/blob/${BRANCH}/src/Wrong" src/Cdn | render cdn
+          pcd src/Cdn | render cdn
           pcd src/Exception | render exception
           pcd src-annotation | render attributes
 
