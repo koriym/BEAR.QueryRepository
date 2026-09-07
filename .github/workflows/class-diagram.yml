@@ -55,15 +55,14 @@ jobs:
           pcd() { php /tmp/pcd/vendor/bin/php-class-diagram --svg-topurl="$topurl" "$@"; }
           render() { java -jar /tmp/plantuml.jar -tsvg -pipe > "docs/diagrams/$1.svg"; }
 
-          # Package relations first: a cycle between namespaces is drawn as a thick red line,
-          # which is the one thing here that reports a defect rather than describing the code.
-          pcd --package-diagram src | render package
-
           # Relations without members, because a member-level diagram of every class renders
           # 24000px wide and answers nothing. The subnamespaces are separate for the same reason.
           pcd --disable-class-properties --disable-class-methods \
             --exclude='Log' --exclude='Cdn' --exclude='Exception' src | render core
           pcd --disable-class-properties --disable-class-methods src/Log | render log
+
+          # The attributes are the surface an application writes against, so this one keeps members.
+          pcd --hide-private src-annotation | render attributes
 
       - name: Commit when the design changed
         run: |
