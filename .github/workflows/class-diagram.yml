@@ -56,24 +56,31 @@ jobs:
           # Clear first: a renamed diagram would otherwise be served forever from the old file.
           rm -rf docs/diagrams
           mkdir -p docs/diagrams
-          topurl="https://github.com/${GITHUB_REPOSITORY}/blob/${BRANCH}/src"
-          pcd() { php /tmp/pcd/vendor/bin/php-class-diagram --svg-topurl="$topurl" "$@"; }
+          # The tool links each class by its path relative to the directory it was given, so the
+          # top URL has to be that same directory - one shared `src` sends every subnamespace to
+          # a 404.
+          pcd() {
+            target=$1; shift
+            php /tmp/pcd/vendor/bin/php-class-diagram \
+              --svg-topurl="https://github.com/${GITHUB_REPOSITORY}/blob/${BRANCH}/${target}" \
+              "$@" "$target"
+          }
           render() { java -jar /tmp/plantuml.jar -tsvg -pipe > "docs/diagrams/$1.svg"; }
 
           # The whole package on one canvas: methods and public properties of every class, laid
           # out left to right because top to bottom puts 97 classes in a 24800px row. It is a
           # reference to zoom into - the diagrams below are the ones that are read.
-          pcd --hide-private-properties --header='left to right direction' src | render all
+          pcd src --hide-private-properties --header='left to right direction' | render all
 
           # By concern, not one diagram of everything: the root namespace is flat and 60 classes
           # wide, and drawing it whole buries the boxes under their own dependency arrows.
-          pcd --include='*Interceptor.php' --include='*Command*.php' src | render interceptor
-          pcd --include='*Storage*.php' --include='*Repository*.php' --include='*Etag*.php' \
-            --include='ResourceState.php' src | render store
-          pcd --include='*Module.php' src | render module
-          pcd --exclude='*Interceptor.php' --exclude='*Command*.php' --exclude='*Storage*.php' \
+          pcd src --include='*Interceptor.php' --include='*Command*.php' | render interceptor
+          pcd src --include='*Storage*.php' --include='*Repository*.php' --include='*Etag*.php' \
+            --include='ResourceState.php' | render store
+          pcd src --include='*Module.php' | render module
+          pcd src --exclude='*Interceptor.php' --exclude='*Command*.php' --exclude='*Storage*.php' \
             --exclude='*Repository*.php' --exclude='*Etag*.php' --exclude='*Module.php' \
-            --exclude='Log' --exclude='Cdn' --exclude='Exception' src | render http-cache
+            --exclude='Log' --exclude='Cdn' --exclude='Exception' | render http-cache
           pcd src/Log | render log
           pcd src/Cdn | render cdn
           pcd src/Exception | render exception
@@ -82,6 +89,21 @@ jobs:
           # What the modules bind, which no class diagram shows: dashed is a binding, solid a
           # dependency, and a double arrow means a Provider stands between them.
           php bin/gen_og.php
+
+      - name: Check every link resolves
+        # The links are the reason these are SVG. A wrong top URL is invisible in the picture:
+        # it renders the same and every box leads to a 404.
+        run: |
+          status=0
+          for svg in docs/diagrams/*.svg; do
+            grep -o 'xlink:href="[^"]*"' "$svg" | sed 's/xlink:href="//;s/"$//' | sort -u |
+            while read -r url; do
+              case "$url" in https://github.com/*) ;; *) continue ;; esac
+              path=${url#https://github.com/${GITHUB_REPOSITORY}/blob/${BRANCH}/}
+              [ -f "$path" ] || { echo "$svg: $url does not exist in the checkout"; exit 1; }
+            done || status=1
+          done
+          exit $status
 
       - name: Commit when the design changed
         run: |
