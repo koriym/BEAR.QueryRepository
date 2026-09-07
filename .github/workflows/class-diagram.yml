@@ -72,15 +72,6 @@ jobs:
           # reference to zoom into - the diagrams below are the ones that are read.
           pcd src --hide-private-properties --header='left to right direction' | render all
 
-          # By concern, not one diagram of everything: the root namespace is flat and 60 classes
-          # wide, and drawing it whole buries the boxes under their own dependency arrows.
-          pcd src --include='*Interceptor.php' --include='*Command*.php' | render interceptor
-          pcd src --include='*Storage*.php' --include='*Repository*.php' --include='*Etag*.php' \
-            --include='ResourceState.php' | render store
-          pcd src --include='*Module.php' | render module
-          pcd src --exclude='*Interceptor.php' --exclude='*Command*.php' --exclude='*Storage*.php' \
-            --exclude='*Repository*.php' --exclude='*Etag*.php' --exclude='*Module.php' \
-            --exclude='Log' --exclude='Cdn' --exclude='Exception' | render http-cache
           pcd src/Log | render log
           pcd src/Cdn | render cdn
           pcd src/Exception | render exception
