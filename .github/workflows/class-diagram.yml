@@ -60,6 +60,11 @@ jobs:
           pcd() { php /tmp/pcd/vendor/bin/php-class-diagram --svg-topurl="$topurl" "$@"; }
           render() { java -jar /tmp/plantuml.jar -tsvg -pipe > "docs/diagrams/$1.svg"; }
 
+          # The whole package on one canvas: methods and public properties of every class, laid
+          # out left to right because top to bottom puts 97 classes in a 24800px row. It is a
+          # reference to zoom into - the diagrams below are the ones that are read.
+          pcd --hide-private-properties --header='left to right direction' src | render all
+
           # By concern, not one diagram of everything: the root namespace is flat and 60 classes
           # wide, and drawing it whole buries the boxes under their own dependency arrows.
           pcd --include='*Interceptor.php' --include='*Command*.php' src | render interceptor
