@@ -40,19 +40,22 @@ mkdir -p ~/.claude/skills/bear-cache-log && curl -fsSL \
 
 > このプロジェクトをキャッシュ観測可能にして
 
-これだけ言われたら、次を順に実行して**止まらずに最後まで行く**。人に聞くのは 1 つだけ —
-記録を on にする文脈(開発だけか、本番も含めるか)。
+**質問せずに**次を順に実行し、最後まで行く。止まるのは実行が不可能なときだけで、そのときはその事実を
+1 行報告して残りを続ける。対象は**開発文脈**(本番の記録は別の依頼)。
 
-1. **版を合わせる** — `composer require bear/query-repository:1.x-dev`。解決した sha を報告に書く
-2. **記録を on** — その文脈の module に `DevQueryRepositoryLogModule` を **`module:` で包んで** install(§1)。
-   本番も対象なら `ProdQueryRepositoryLogModule`
-3. **店を確かめる** — プールが既定の `NullAdapter` なら 1 件も保存されない(§2)。束縛が無ければアプリに
-   何を使うか聞かずに、まず**現状を報告**する(勝手に Redis を足さない)
-4. **`bear/event-sourcing` が入っていれば**、キャッシュのスコープをリクエストの木の内側に入れる
-   (§1「他のパッケージのログと 1 本の木にする」)。入っていなければ飛ばす
-5. **1 リクエスト流して実証**する。次の 3 つを**出力として**示す:
+1. **版を確かめる** — `composer show bear/query-repository` を見て、`Log\SafeSemanticLogger` を持つ版か
+   確かめる(`ls vendor/bear/query-repository/src/Log/`)。持っていればそのまま使い、**制約は変えない**。
+   持っていないときだけ `composer require bear/query-repository:1.x-dev` で上げ、解決した sha を報告に書く
+2. **記録を on** — 開発文脈の module に `DevQueryRepositoryLogModule` を **`module:` で包んで** install(§1)
+3. **店を確かめる** — プールが既定の `NullAdapter` なら 1 件も保存されない(§2)。束縛が無ければ**現状を報告**し、
+   勝手に Redis を足さない(テストで観測するだけなら `ArrayAdapter`)
+4. **リクエストの木に入れる** — `composer require --dev bear/event-sourcing`(PHP ^8.3。満たさなければ
+   その事実を 1 行報告して 5 へ)。配線は §1「他のパッケージのログと 1 本の木にする」の **4 条件どおり**に
+   書く(文脈の順・context module に直接・包まず install・provider で `arm()`)。**推測で install 位置を
+   動かす前に `echo (string) $module;` で束縛を見る**
+5. **1 リクエストで実証** — 次の 3 つを**出力として**示す:
    - `URI -> close の型`(§1 の `jq`)
-   - 文脈ごとの `#[CacheLog]` の logger / writer / sink の実クラス(§1b)
+   - `#[CacheLog]` の logger / writer / sink の実クラス(§1b)
    - 同一性チェック — 素のキーと `#[CacheLog]` が同じインスタンスか(§1)
 
 **「入れました」だけの報告は不合格。** 既定オフのまま無音になっている状態と区別できない。
@@ -139,31 +142,69 @@ $log = $logger->flush();                    // その場で受け取る(以降�
 残らない**。`latest.json` を探して「ログが無い」と結論する前に、対象のテストやスクリプトが自分で
 束縛していないかを読む。
 
-### 他のパッケージのログと 1 本の木にする
+### 他のパッケージのログと 1 本の木にする(実アプリで通した手順)
 
-BEAR.EventSourcing の `resource_request` の内側にキャッシュのスコープを入れたい、のような場合は
-**同じ logger を 2 つの束縛キー(素のキーと `#[CacheLog]`)が指す**必要がある。Ray.Di の Scope は
-束縛キー単位で、`to()` は対象クラスのスコープを継がない — 具象を Singleton にしても、`to()` した
-インターフェイスキーは毎回別のインスタンスになる。だから `to()` も `toConstructor()` ではこれはできない。
-provider で素のキーの Singleton をそのまま返す:
+BEAR.EventSourcing の `resource_request` の内側にキャッシュのスコープを入れる。**4 条件すべてが必要**。
+**1 と 2 を外すと `Unbound` で落ちる**(`InvokerInterface-bear_event_sourcing_invoker`)。
+**3 と 4 は例外を出さない** — 3 はインターセプタが 2 回走り、4 は記録されるがファイルが 1 つも出ない:
+
+1. **文脈は `dev` が `app` より前**(`cli-dev-fake-hal-app` など)。context module は chain を継いだ後に
+   適用されるので、この順でないと次の `rename()` が空振りする
+2. **EventSourcing の配線は context module に直接書く**(パッケージ README の "Wiring inside a
+   BEAR.Sunday context")。`install(new DevLogModule(...))` は standalone injector 用で、Sunday の文脈では
+   `InvokerInterface-bear_event_sourcing_invoker` が未束縛になり `Unbound` で落ちる
+3. **`DevQueryRepositoryLogModule` は包まずに install**。writer と sink をもらうためで、`module:` で包むと
+   `QueryRepositoryModule` が二重になり pointcut が積まれる
+4. **`#[CacheLog]` の provider で `arm()` を呼ぶ。** アプリの logger には drain が無いので、呼ばないと
+   記録はされるが**ファイルが 1 つも出ない**
 
 ```php
-$this->bind(SemanticLoggerInterface::class)->annotatedWith(CacheLog::class)
-    ->toProvider(SharedCacheLogProvider::class)->in(Scope::SINGLETON);
+// context module(dev)
+$this->install(new DevQueryRepositoryLogModule($this->appMeta->logDir . '/query-repository'));
+$this->override(new class extends AbstractModule {
+    protected function configure(): void
+    {
+        $this->bind(SemanticLoggerInterface::class)->annotatedWith(CacheLog::class)
+            ->toProvider(SharedCacheLogProvider::class)->in(Scope::SINGLETON);
+    }
+});
+
+final class SharedCacheLogProvider implements ProviderInterface
+{
+    public function __construct(
+        private readonly SemanticLoggerInterface $logger,   // この文脈が既に束縛している logger
+        private readonly LogSinkInterface $sink,            // DevQueryRepositoryLogModule が束縛
+    ) {
+    }
+
+    public function get(): SemanticLoggerInterface
+    {
+        $this->sink->arm($this->logger);   // shutdown でこの logger の session が書かれる
+
+        return $this->logger;
+    }
+}
 ```
 
+`override()` が必要 — `DevQueryRepositoryLogModule` が同じキーを自分で束縛している。`arm()` は
+`LogSinkInterface::arm(SemanticLoggerInterface)` で**実装を問わない**(`SafeSemanticLogger` 専用ではない)。
+
 **サービスを `toInstance` で渡さない。** DI が構築を握らなくなるうえ、束縛にオブジェクトが載るので
-closure を持つものを渡すと `serialize($injector)` が落ちる(コンパイル済み injector を使い回す構成で止まる)。
-点検は型ではなく同一性で:
+closure を持つものを渡すと `serialize($injector)` が落ちる。点検は型ではなく**同一性**で:
 
 ```php
 $injector->getInstance(SemanticLoggerInterface::class)
     === $injector->getInstance(SemanticLoggerInterface::class, CacheLog::class);
 ```
 
-**これが `false` だと、キャッシュのイベントだけが静かに消える**(実測: `to()` で束縛したら
-`resource_request` は出続け、`get`/`save_value`/`cache_hit` が 1 件も出なくなった。例外は出ない)。
-観測系のモジュールは対象より**先に** install する — 後にすると、そのログだけが無音で消える。
+**`false` だと、キャッシュのイベントだけが静かに消える**(実測: `to()` で束縛したら `resource_request` は
+出続け、`get`/`save_value`/`cache_hit` が 1 件も出なくなった)。
+
+**配線を推測で動かさない。** 束縛は 1 行で読める — `echo (string) $module;`(BEAR.Package なら
+`(new BEAR\Package\Module())($meta, $context)`)。私はこれを見る前に install 位置を 2 回動かして無駄にした。
+見るべきは `InvokerInterface-`(装飾されたか)、`-original_invoker`(rename が効いたか)、
+`SemanticLoggerInterface-...CacheLog`(どの provider か)、`LogSinkInterface-`(drain があるか)、
+`AdapterInterface-...ResourceObjectPool`(店があるか)。
 
 依存の伝播はこの 2 本を突き合わせる。`depends_on` の子タグが `save_*` の `tags` に現れていなければ、
 そこで途切れている:
