@@ -36,6 +36,34 @@ mkdir -p ~/.claude/skills/bear-cache-log && curl -fsSL \
   -o ~/.claude/skills/bear-cache-log/SKILL.md
 ```
 
+## 0. 一言で頼まれたとき
+
+> このプロジェクトをキャッシュ観測可能にして
+
+これだけ言われたら、次を順に実行して**止まらずに最後まで行く**。人に聞くのは 1 つだけ —
+記録を on にする文脈(開発だけか、本番も含めるか)。
+
+1. **版を合わせる** — `composer require bear/query-repository:1.x-dev`。解決した sha を報告に書く
+2. **記録を on** — その文脈の module に `DevQueryRepositoryLogModule` を **`module:` で包んで** install(§1)。
+   本番も対象なら `ProdQueryRepositoryLogModule`
+3. **店を確かめる** — プールが既定の `NullAdapter` なら 1 件も保存されない(§2)。束縛が無ければアプリに
+   何を使うか聞かずに、まず**現状を報告**する(勝手に Redis を足さない)
+4. **`bear/event-sourcing` が入っていれば**、キャッシュのスコープをリクエストの木の内側に入れる
+   (§1「他のパッケージのログと 1 本の木にする」)。入っていなければ飛ばす
+5. **1 リクエスト流して実証**する。次の 3 つを**出力として**示す:
+   - `URI -> close の型`(§1 の `jq`)
+   - 文脈ごとの `#[CacheLog]` の logger / writer / sink の実クラス(§1b)
+   - 同一性チェック — 素のキーと `#[CacheLog]` が同じインスタンスか(§1)
+
+**「入れました」だけの報告は不合格。** 既定オフのまま無音になっている状態と区別できない。
+この 3 つが揃って初めて「観測可能になった」と言える。
+
+以降、疑うたびに言われるのは次の一言だけ:
+
+> `<URI>` が意図どおりキャッシュされているか、ログで確かめて
+
+→ §4 で宣言とイベント列を照合し、食い違えば §5 で切り分け、§6 の 6 項目で報告する。
+
 ## 正典ドキュメント(推測で補完しない)
 
 `docs/` と `demo/` は `.gitattributes` で `export-ignore` — 通常の `composer require` の vendor には**入らない**。
